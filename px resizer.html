@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Resizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+    /* Apple iOS Light Canvas */
+    --bg-gradient: linear-gradient(135deg, #f2f2f7 0%, #e5e5ea 100%);
+    
+    /* Boosted to 12% Dark Tinted Glass for definitive contrast */
+    --glass-bg: rgba(0, 0, 0, 0.12); 
+    
+    /* Stronger white specular border to catch light on the edges */
+    --glass-border: rgba(255, 255, 255, 0.6); 
+    
+    --text-main: #000000;
+    --text-muted: #6c6c72;
+    --accent: #007aff;
+    --blur-val: 30px;
+}
+
+        .dark-mode {
+            /* Apple iOS System Dark Canvas: Rich dark grey environment */
+            --bg-gradient: linear-gradient(135deg, #1c1c1e 0%, #121214 100%);
+            
+            /* 5% Light Frosted Specular Tint for Dark Mode glass clarity */
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            
+            --text-main: #ffffff;
+            --text-muted: #aeaeac;
+            --accent: #0a84ff; /* Apple iOS Dark Blue Variant */
+            --accent-glow: rgba(10, 132, 255, 0.4);
+            --select-item-bg: #2c2c2e;
+            --select-item-text: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+            transition: background 0.5s cubic-bezier(0.25, 1, 0.5, 1), 
+                        color 0.4s ease, 
+                        filter 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.4s ease;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* Compact Primary Slab (70% Footprint) */
+        .glass-slab {
+       background: var(--glass-bg);
+    
+       /* Boosting saturate to 160% makes colors behind the glass look vibrant and delicious */
+       backdrop-filter: blur(var(--blur-val)) saturate(160%);
+       -webkit-backdrop-filter: blur(var(--blur-val)) saturate(160%);
+    
+        border: 1px solid var(--glass-border);
+       border-radius: 28px;
+       padding: 24px;
+    
+       /* A much darker, wider ambient drop-shadow makes the panel undeniably separate */
+       box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.18), 
+                  inset 0 1px 2px var(--glass-border);
+      }
+
+        /* Complete Text Obfuscation Layer when Preferences reveal */
+        .glass-slab.obscured-state .main-content-wrapper {
+            filter: blur(40px);
+            opacity: 0.12;
+            pointer-events: none;
+        }
+
+        /* Settings Floating Circular Disc */
+        .settings-disc {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            z-index: 30;
+        }
+
+        .settings-disc:hover {
+            box-shadow: 0 0 12px var(--accent-glow);
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        .settings-disc svg {
+            width: 14px;
+            height: 14px;
+            fill: var(--text-main);
+        }
+
+        header h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 4px;
+            margin-top: 5px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-bottom: 20px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .input-group label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            padding-left: 4px;
+        }
+
+        input[type="number"], select {
+            background: rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 10px 12px;
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            outline: none;
+            width: 100%;
+        }
+        
+        .dark-mode input[type="number"], .dark-mode select {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        select option, select optgroup {
+            background-color: var(--select-item-bg) !important;
+            color: var(--select-item-text) !important;
+        }
+
+        input[type="number"]:focus, select:focus {
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.9);
+        }
+        .dark-mode input[type="number"]:focus, .dark-mode select:focus {
+            background: rgba(28, 28, 30, 0.9);
+        }
+
+        .full-width { grid-column: span 2; }
+
+        .upload-zone {
+            border: 1.5px dashed var(--glass-border);
+            padding: 20px 10px;
+            border-radius: 16px;
+            cursor: pointer;
+            background: rgba(0, 0, 0, 0.01);
+            margin-bottom: 16px;
+        }
+        .dark-mode .upload-zone {
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .upload-zone p { font-size: 0.8rem; color: var(--text-muted); }
+        .upload-zone span { color: var(--accent); font-weight: 600; }
+        #file-input { display: none; }
+        #file-status { margin-top: 4px; font-size: 0.75rem; color: var(--accent); font-weight: 600; }
+
+        .btn-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .btn {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            padding: 12px 16px;
+            border-radius: 50px; 
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .btn:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 14px var(--accent-glow);
+            transform: translateY(-1px);
+        }
+
+        .btn-active-style {
+            background: var(--accent);
+            color: #fff;
+            border-color: transparent;
+        }
+        .btn-active-style:hover {
+            background: var(--accent);
+            color: #fff;
+            opacity: 0.9;
+        }
+
+        /* Secondary Interface Panel Frame */
+        .secondary-slab {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -45%) scale(0.9);
+            width: 85%;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border-radius: 20px;
+            padding: 20px;
+            opacity: 0;
+            pointer-events: none;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 40;
+            text-align: left;
+        }
+
+        .secondary-slab.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .secondary-slab h2 { font-size: 1.1rem; margin-bottom: 16px; font-weight: 600; }
+
+        .close-disc {
+            position: absolute;
+            top: 15px; right: 15px;
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 50;
+        }
+        .close-disc:hover {
+            border-color: #ef4444;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+        .close-disc::before, .close-disc::after {
+            content: ''; position: absolute; width: 10px; height: 1.5px; background: var(--text-main);
+        }
+        .close-disc::before { transform: rotate(45deg); }
+        .close-disc::after { transform: rotate(-45deg); }
+
+        .setting-row {
+            display: flex; align-items: center; justify-content: space-between; margin-top: 12px;
+        }
+        .setting-row span { font-size: 0.85rem; font-weight: 500; }
+
+        .ios-switch {
+            position: relative; width: 46px; height: 26px;
+            appearance: none; background: rgba(0,0,0,0.1);
+            border-radius: 50px; cursor: pointer;
+            border: 1px solid var(--glass-border);
+            transition: background 0.3s;
+        }
+        .dark-mode .ios-switch { background: rgba(255,255,255,0.15); }
+        
+        .ios-switch::before {
+            content: ''; position: absolute; top: 2px; left: 2px;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            transition: transform 0.4s cubic-bezier(0.68, -0.6, 0.32, 1.6);
+        }
+        .ios-switch:checked { background: #34c759; }
+        .ios-switch:checked::before { transform: translateX(20px); }
+
+        .loader {
+            display: none; width: 20px; height: 20px;
+            border: 2px solid rgba(0,0,0,0.1); border-radius: 50%;
+            border-top-color: var(--accent); animation: spin 0.8s linear infinite;
+            margin: 10px auto -5px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="glass-slab" id="mainSlab">
+        <div class="settings-disc" id="openSettings" title="Preferences">
+            <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+        </div>
+
+        <div class="main-content-wrapper">
+            <header>
+                <h1>Studio Resizer</h1>
+                <p>High Fidelity Platform Processing</p>
+            </header>
+
+            <div class="config-grid">
+                <div class="input-group full-width">
+                    <label for="preset-select">Target Profiles</label>
+                    <select id="preset-select">
+                        <option value="custom">Custom Geometry</option>
+                        <optgroup label="Digital Icons">
+                            <option value="32x32">Avatar Core (32×32)</option>
+                            <option value="180x180">Facebook Profile (180×180)</option>
+                            <option value="400x400">Twitter Grid (400×400)</option>
+                        </optgroup>
+                        <optgroup label="Social Vectors">
+                            <option value="1200x630">FB Shared Asset (1200×630)</option>
+                            <option value="1080x1080">Instagram Base (1080×1080)</option>
+                            <option value="1500x500">Twitter Banner (1500×500)</option>
+                        </optgroup>
+                        <optgroup label="Layout Masters">
+                            <option value="1920x1080">Full HD Display (1920×1080)</option>
+                            <option value="3840x2160">4K Ultra Engine (3840×2160)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="width-input">Width (px)</label>
+                    <input type="number" id="width-input" value="1920" min="1">
+                </div>
+                <div class="input-group">
+                    <label for="height-input">Height (px)</label>
+                    <input type="number" id="height-input" value="1080" min="1">
+                </div>
+            </div>
+
+            <div class="upload-zone" id="drop-zone">
+                <p>Drop layout assets or <span>browse</span></p>
+                <div id="file-status">0 targets ready</div>
+                <input type="file" id="file-input" accept="image/*" multiple>
+            </div>
+
+            <div class="loader" id="loader"></div>
+
+            <div class="btn-container">
+                <button class="btn btn-active-style" id="process-btn">Resize</button>
+                <button class="btn" id="download-btn">Download</button>
+            </div>
+        </div>
+
+        <div class="secondary-slab" id="secondarySlab">
+            <div class="close-disc" id="closeSettings" title="Close Panel"></div>
+            <h2>Preferences</h2>
+            
+            <div class="input-group" style="margin-bottom: 12px;">
+                <label for="dpi-input">Density (DPI / PPI)</label>
+                <input type="number" id="dpi-input" value="72" min="1" max="1200">
+            </div>
+
+            <div class="setting-row">
+                <span>Dark Mode Landscape</span>
+                <input type="checkbox" class="ios-switch" id="darkModeToggle">
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas-engine"></canvas>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const fileStatus = document.getElementById('file-status');
+        const presetSelect = document.getElementById('preset-select');
+        const widthInput = document.getElementById('width-input');
+        const heightInput = document.getElementById('height-input');
+        const dpiInput = document.getElementById('dpi-input');
+        const processBtn = document.getElementById('process-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const loader = document.getElementById('loader');
+        const mainSlab = document.getElementById('mainSlab');
+        const canvas = document.getElementById('canvas-engine');
+        const ctx = canvas.getContext('2d');
+
+        const openSettings = document.getElementById('openSettings');
+        const closeSettings = document.getElementById('closeSettings');
+        const secondarySlab = document.getElementById('secondarySlab');
+        const darkModeToggle = document.getElementById('darkModeToggle');
+
+        let selectedFiles = [];
+        let processedImages = [];
+
+        openSettings.addEventListener('click', () => {
+            mainSlab.classList.add('obscured-state');
+            secondarySlab.classList.add('active');
+        });
+
+        const closePanel = () => {
+            mainSlab.classList.remove('obscured-state');
+            secondarySlab.classList.remove('active');
+        };
+        closeSettings.addEventListener('click', closePanel);
+
+        darkModeToggle.addEventListener('change', () => {
+            if(darkModeToggle.checked) {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+        });
+
+        presetSelect.addEventListener('change', () => {
+            if (presetSelect.value !== 'custom') {
+                const [w, h] = presetSelect.value.split('x');
+                widthInput.value = w;
+                heightInput.value = h;
+            }
+        });
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if(e.target.files.length) handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+            fileStatus.textContent = `${selectedFiles.length} item${selectedFiles.length !== 1 ? 's' : ''} parsed`;
+        }
+
+        processBtn.addEventListener('click', async () => {
+            if (!selectedFiles.length) return alert('Select source media assets.');
+            
+            loader.style.display = 'block';
+            processedImages = [];
+
+            const w = parseInt(widthInput.value);
+            const h = parseInt(heightInput.value);
+            const dpi = parseInt(dpiInput.value) || 72;
+
+            const scaleMultiplier = dpi / 72;
+            const finalW = Math.round(w * scaleMultiplier);
+            const finalH = Math.round(h * scaleMultiplier);
+
+            for (let file of selectedFiles) {
+                const dataUrl = await resizeKernel(file, finalW, finalH);
+                processedImages.push({ name: file.name, dataUrl });
+            }
+
+            loader.style.display = 'none';
+            alert('Images successfully re-rendered down.');
+        });
+
+        function resizeKernel(file, w, h) {
+            return new Promise((resolve) => {
+                const r = new FileReader();
+                r.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        canvas.width = w;
+                        canvas.height = h;
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.clearRect(0,0,w,h);
+                        ctx.drawImage(img, 0,0,w,h);
+                        resolve(canvas.toDataURL(file.type || 'image/png', 1.0));
+                    };
+                    img.src = e.target.result;
+                };
+                r.readAsDataURL(file);
+            });
+        }
+
+        downloadBtn.addEventListener('click', async () => {
+            if (!processedImages.length) return alert('Run render configuration pipeline first.');
+
+            if (processedImages.length === 1) {
+                const element = document.createElement('a');
+                element.download = `scaled_${processedImages[0].name}`;
+                element.href = processedImages[0].dataUrl;
+                element.click();
+            } else {
+                const zip = new JSZip();
+                processedImages.forEach(img => {
+                    zip.file(`scaled_${img.name}`, img.dataUrl.split(',')[1], {base64: true});
+                });
+                const blob = await zip.generateAsync({type: 'blob'});
+                const element = document.createElement('a');
+                element.download = 'studio_batch.zip';
+                element.href = URL.createObjectURL(blob);
+                element.click();
+            }
+        });
+    </script>
+</body>
+</html>
