@@ -10,20 +10,23 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
-    /* Apple iOS Light Canvas */
-    --bg-gradient: linear-gradient(135deg, #f2f2f7 0%, #e5e5ea 100%);
-    
-    /* Boosted to 12% Dark Tinted Glass for definitive contrast */
-    --glass-bg: rgba(0, 0, 0, 0.12); 
-    
-    /* Stronger white specular border to catch light on the edges */
-    --glass-border: rgba(255, 255, 255, 0.6); 
-    
-    --text-main: #000000;
-    --text-muted: #6c6c72;
-    --accent: #007aff;
-    --blur-val: 30px;
-}
+            /* Apple iOS Light Canvas */
+            --bg-gradient: linear-gradient(135deg, #f2f2f7 0%, #e5e5ea 100%);
+            
+            /* Boosted to 12% Dark Tinted Glass for definitive contrast */
+            --glass-bg: rgba(0, 0, 0, 0.12); 
+            
+            /* Stronger white specular border to catch light on the edges */
+            --glass-border: rgba(255, 255, 255, 0.6); 
+            
+            --text-main: #000000;
+            --text-muted: #6c6c72;
+            --accent: #007aff;
+            --accent-glow: rgba(0, 122, 255, 0.25);
+            --blur-val: 30px;
+            --select-item-bg: #ffffff;
+            --select-item-text: #000000;
+        }
 
         .dark-mode {
             /* Apple iOS System Dark Canvas: Rich dark grey environment */
@@ -65,20 +68,18 @@
 
         /* Compact Primary Slab (70% Footprint) */
         .glass-slab {
-       background: var(--glass-bg);
-    
-       /* Boosting saturate to 160% makes colors behind the glass look vibrant and delicious */
-       backdrop-filter: blur(var(--blur-val)) saturate(160%);
-       -webkit-backdrop-filter: blur(var(--blur-val)) saturate(160%);
-    
-        border: 1px solid var(--glass-border);
-       border-radius: 28px;
-       padding: 24px;
-    
-       /* A much darker, wider ambient drop-shadow makes the panel undeniably separate */
-       box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.18), 
-                  inset 0 1px 2px var(--glass-border);
-      }
+            position: relative;
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--blur-val)) saturate(160%);
+            -webkit-backdrop-filter: blur(var(--blur-val)) saturate(160%);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            padding: 24px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.18), 
+                        inset 0 1px 2px var(--glass-border);
+        }
 
         /* Complete Text Obfuscation Layer when Preferences reveal */
         .glass-slab.obscured-state .main-content-wrapper {
@@ -104,6 +105,7 @@
             justify-content: center;
             box-shadow: 0 4px 10px rgba(0,0,0,0.05);
             z-index: 30;
+            transition: all 0.3s ease;
         }
 
         .settings-disc:hover {
@@ -116,6 +118,7 @@
             width: 14px;
             height: 14px;
             fill: var(--text-main);
+            transition: fill 0.3s ease;
         }
 
         header h1 {
@@ -162,6 +165,7 @@
             font-size: 0.85rem;
             outline: none;
             width: 100%;
+            transition: all 0.3s ease;
         }
         
         .dark-mode input[type="number"], .dark-mode select {
@@ -190,6 +194,12 @@
             cursor: pointer;
             background: rgba(0, 0, 0, 0.01);
             margin-bottom: 16px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .upload-zone:hover {
+            border-color: var(--accent);
+            background: rgba(0, 122, 255, 0.02);
         }
         .dark-mode .upload-zone {
             background: rgba(255, 255, 255, 0.01);
@@ -219,6 +229,7 @@
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.02);
             transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+            text-align: center;
         }
 
         .btn:hover {
@@ -398,6 +409,17 @@
     <canvas id="canvas-engine"></canvas>
 
     <script>
+        // ==========================================================================
+        // SYSTEM STATE & CONFIGURATION STORAGE KEYS
+        // ==========================================================================
+        const CONFIG_KEYS = {
+            THEME: 'studio_resizer_theme',
+            DPI: 'studio_resizer_dpi'
+        };
+
+        // ==========================================================================
+        // DOM ELEMENT REGISTRY
+        // ==========================================================================
         const fileInput = document.getElementById('file-input');
         const dropZone = document.getElementById('drop-zone');
         const fileStatus = document.getElementById('file-status');
@@ -420,25 +442,75 @@
         let selectedFiles = [];
         let processedImages = [];
 
-        openSettings.addEventListener('click', () => {
-            mainSlab.classList.add('obscured-state');
-            secondarySlab.classList.add('active');
-        });
+        // ==========================================================================
+        // PREFERENCES & UTILITIES ENGINE
+        // ==========================================================================
+        const SettingsManager = {
+            init() {
+                this.loadSavedPreferences();
+                this.registerSettingsListeners();
+            },
 
-        const closePanel = () => {
-            mainSlab.classList.remove('obscured-state');
-            secondarySlab.classList.remove('active');
-        };
-        closeSettings.addEventListener('click', closePanel);
+            loadSavedPreferences() {
+                // Retrieve and apply persisted theme state or system fallback
+                const savedTheme = localStorage.getItem(CONFIG_KEYS.THEME);
+                const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                
+                if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+                    document.body.classList.add('dark-mode');
+                    darkModeToggle.checked = true;
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    darkModeToggle.checked = false;
+                }
 
-        darkModeToggle.addEventListener('change', () => {
-            if(darkModeToggle.checked) {
-                document.body.classList.add('dark-mode');
-            } else {
-                document.body.classList.remove('dark-mode');
+                // Retrieve and apply persisted density state
+                const savedDPI = localStorage.getItem(CONFIG_KEYS.DPI);
+                if (savedDPI) {
+                    dpiInput.value = savedDPI;
+                }
+            },
+
+            registerSettingsListeners() {
+                // Handle panel display state toggles
+                openSettings.addEventListener('click', () => {
+                    mainSlab.classList.add('obscured-state');
+                    secondarySlab.classList.add('active');
+                });
+
+                const closePanel = () => {
+                    mainSlab.classList.remove('obscured-state');
+                    secondarySlab.classList.remove('active');
+                };
+                closeSettings.addEventListener('click', closePanel);
+
+                // Persistent theme configuration updates
+                darkModeToggle.addEventListener('change', () => {
+                    if (darkModeToggle.checked) {
+                        document.body.classList.add('dark-mode');
+                        localStorage.setItem(CONFIG_KEYS.THEME, 'dark');
+                    } else {
+                        document.body.classList.remove('dark-mode');
+                        localStorage.setItem(CONFIG_KEYS.THEME, 'light');
+                    }
+                });
+
+                // Persistent density configuration updates
+                dpiInput.addEventListener('input', () => {
+                    const val = parseInt(dpiInput.value);
+                    if (val > 0) {
+                        localStorage.setItem(CONFIG_KEYS.DPI, val);
+                    }
+                });
             }
-        });
+        };
 
+        // Fire up preferences system
+        SettingsManager.init();
+
+        // ==========================================================================
+        // CORE PROCESSING PIPELINE
+        // ==========================================================================
         presetSelect.addEventListener('change', () => {
             if (presetSelect.value !== 'custom') {
                 const [w, h] = presetSelect.value.split('x');
@@ -448,13 +520,13 @@
         });
 
         dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); });
+        dropZone.addEventListener('dragover', (e) => e.preventDefault());
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+            if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
         });
         fileInput.addEventListener('change', (e) => {
-            if(e.target.files.length) handleFiles(e.target.files);
+            if (e.target.files.length) handleFiles(e.target.files);
         });
 
         function handleFiles(files) {
@@ -495,8 +567,8 @@
                         canvas.height = h;
                         ctx.imageSmoothingEnabled = true;
                         ctx.imageSmoothingQuality = 'high';
-                        ctx.clearRect(0,0,w,h);
-                        ctx.drawImage(img, 0,0,w,h);
+                        ctx.clearRect(0, 0, w, h);
+                        ctx.drawImage(img, 0, 0, w, h);
                         resolve(canvas.toDataURL(file.type || 'image/png', 1.0));
                     };
                     img.src = e.target.result;
@@ -516,9 +588,9 @@
             } else {
                 const zip = new JSZip();
                 processedImages.forEach(img => {
-                    zip.file(`scaled_${img.name}`, img.dataUrl.split(',')[1], {base64: true});
+                    zip.file(`scaled_${img.name}`, img.dataUrl.split(',')[1], { base64: true });
                 });
-                const blob = await zip.generateAsync({type: 'blob'});
+                const blob = await zip.generateAsync({ type: 'blob' });
                 const element = document.createElement('a');
                 element.download = 'studio_batch.zip';
                 element.href = URL.createObjectURL(blob);
